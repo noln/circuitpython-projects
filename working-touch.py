@@ -1,7 +1,6 @@
 """
 FINAL TOUCH – 128x128 RAW
-X = B4, Y = B6
-No scaling, no math
+100Hz refresh, no redraw if position same
 """
 import board
 import digitalio
@@ -59,6 +58,8 @@ def read_touch():
 
 # === CIRCLE ===
 touch_circle = None
+last_x = -1
+last_y = -1
 
 # === LABEL ===
 msg = label.Label(
@@ -75,27 +76,35 @@ group.append(msg)
 while True:
     data = read_touch()
     if data and len(data) >= 7 and data[1] >= 1:
-        raw_x = data[4]   # B4 = X (0–128)
-        raw_y = data[6]   # B6 = Y (0–128)
+        raw_x = data[4]  # B4 = X (0–128)
+        raw_y = data[6]  # B6 = Y (0–128)
 
-        # === NO SCALING – USE RAW 128x128 ===
-        tx = raw_x
-        ty = raw_y
+        # === ONLY UPDATE IF POSITION CHANGED ===
+        if raw_x != last_x or raw_y != last_y:
+            # Remove old circle
+            if touch_circle and touch_circle in group:
+                group.remove(touch_circle)
 
-        # === UPDATE CIRCLE ===
-        if touch_circle and touch_circle in group:
-            group.remove(touch_circle)
-        touch_circle = Circle(tx, ty, 15, fill=0xFFFFFF, outline=0x00FFFF)
-        group.append(touch_circle)
+            # Draw new circle
+            touch_circle = Circle(raw_x, raw_y, 15, fill=0xFFFFFF, outline=0x00FFFF)
+            group.append(touch_circle)
 
-        # === SHOW RAW VALUES ===
-        msg.text = f"{raw_x},{raw_y}"
-        msg.color = 0x00FF00
+            # Update last known position
+            last_x = raw_x
+            last_y = raw_y
+
+            # Update text
+            msg.text = f"{raw_x},{raw_y}"
+            msg.color = 0x00FF00
     else:
+        # No touch
         if touch_circle and touch_circle in group:
             group.remove(touch_circle)
             touch_circle = None
-        msg.text = "Touch me"
-        msg.color = 0xFFFF00
+        if last_x != -1 or last_y != -1:
+            msg.text = "Touch me"
+            msg.color = 0xFFFF00
+            last_x = -1
+            last_y = -1
 
-    time.sleep(0.05)
+    time.sleep(0.01)  # 100Hz refresh
